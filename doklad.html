@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#ffffff">
+<title>Testovací doklad | Salon Roksana</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f3f5f3;color:#1d3029}*{box-sizing:border-box}body{margin:0}
+main{max-width:460px;margin:36px auto;padding:14px}
+header{text-align:center;margin-bottom:20px}header h1{font-size:22px;margin:0}header p{color:#707e76;font-size:13px}
+.receipt{background:#fff;border:1px dashed #88958e;border-radius:8px;padding:24px 19px;box-shadow:0 4px 20px #0000000b}
+.receipt h2{text-align:center;font-size:19px;margin:0 0 4px}
+.receipt .demo{text-align:center;color:#a43131;font-weight:700;font-size:12px;margin-bottom:16px}
+.receipt p{font-size:13px}.receipt hr{border:0;border-top:1px dashed #b5c0b8;margin:17px 0}
+.row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin:10px 0;font-size:14px}
+.row strong{white-space:nowrap}.total{font-weight:750;font-size:18px}
+.info{text-align:center;color:#65726b;font-size:12px;margin:18px auto;max-width:430px}
+button{display:block;width:100%;background:#215540;color:white;border:0;border-radius:10px;padding:15px;font-size:16px;font-weight:700;margin:18px auto;cursor:pointer}
+.error{background:#ffe9e7;color:#8b1616;border-radius:10px;padding:18px}
+@media print{body{background:white}main{margin:0 auto;max-width:85mm;padding:0}header,.info,button{display:none!important}.receipt{border:0;box-shadow:none;border-radius:0;padding:12px} @page{margin:8mm}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Elektronický doklad</h1><p>Salon Roksana · TESTOVACÍ UKÁZKA</p></header>
+<div id="document" class="receipt" role="document"><p>Načítání dokladu…</p></div>
+<button id="print" type="button" hidden>Tisknout / Uložit jako PDF</button>
+<p class="info">Tato stránka obsahuje pouze testovací doklad. Není propojená s pokladnou ani s přístupem do Google Tabulky. Údaje v testovacím odkazu nejsou ověřené a lze je změnit.</p>
+</main>
+<script>
+(function(){
+  "use strict";
+  const doc=document.getElementById("document"),printBtn=document.getElementById("print");
+  function node(parent,tag,text,cls){
+    const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;parent.appendChild(e);return e;
+  }
+  function row(left,right,cls){
+    const r=node(doc,"div",undefined,"row"+(cls?" "+cls:""));
+    node(r,"span",left);node(r,"strong",right);
+  }
+  try{
+    if(!location.hash.startsWith("#receipt="))throw Error("Chybí údaje testovacího dokladu.");
+    const raw=decodeURIComponent(location.hash.slice(9));
+    if(raw.length>2000)throw Error("Odkaz je příliš dlouhý.");
+    const v=JSON.parse(raw);
+    if(!v||v.v!==1||v.test!==true||typeof v.id!=="string"||v.id.length>90||
+       typeof v.description!=="string"||!v.description.trim()||v.description.length>160||
+       typeof v.date!=="string"||!Number.isFinite(Date.parse(v.date))||
+       typeof v.amount!=="number"||!Number.isFinite(v.amount)||v.amount<=0||v.amount>100000000||
+       !["cash","card","transfer"].includes(v.payment))throw Error("Odkaz neobsahuje platný testovací doklad.");
+    doc.replaceChildren();
+    node(doc,"h2","SALON ROKSANA");
+    node(doc,"p","TESTOVACÍ DOKLAD – NEPLATNÝ","demo");
+    node(doc,"p","Číslo: "+v.id);
+    node(doc,"p","Datum: "+new Date(v.date).toLocaleString("cs-CZ"));
+    node(doc,"hr");
+    row(v.description,v.amount.toLocaleString("cs-CZ",{maximumFractionDigits:2})+" Kč");
+    node(doc,"hr");
+    row("CELKEM",v.amount.toLocaleString("cs-CZ",{maximumFractionDigits:2})+" Kč","total");
+    const labels={cash:"Hotovost",card:"Karta",transfer:"Převod na dálku"};
+    node(doc,"p","Způsob platby: "+labels[v.payment]);
+    node(doc,"p","EET: NEODESLÁNO (TEST)");
+    node(doc,"hr");
+    node(doc,"p","Tento dokument není potvrzením skutečné platby. Údaje nelze nezávisle ověřit.");
+    printBtn.hidden=false;
+    printBtn.addEventListener("click",()=>window.print());
+  }catch(err){
+    doc.replaceChildren();
+    node(doc,"p","Doklad nelze zobrazit: "+err.message,"error");
+  }
+})();
+</script>
+</body></html>
