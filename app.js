@@ -39,8 +39,64 @@ const sim=$("#simulateError");if(sim)sim.onclick=async()=>{const r=list("sale").
 const clear=$("#clearErrors");if(clear)clear.onclick=async()=>{const arr=list("sale").filter(r=>r.eetStatus==="error");for(const r of arr){r.eetStatus="queued";await save(r)}render()};
 const print=$("#printSummary");if(print)print.onclick=()=>window.print();
 }
-function showReceipt(recordId){const r=records.find(o=>o.id===recordId&&o.type==="sale");if(!r)return;receiptId=recordId;const customer=records.find(c=>c.id===r.customerId);$("#pageTitle").textContent="Testovací doklad";$("#view").innerHTML='<div class="sectionTitle noPrint"><h2>Testovací doklad</h2><div class="actions"><button class="btn secondary" id="backRecord">Zpět</button><button class="btn" id="printReceipt">Tisk / Uložit PDF</button></div></div><p class="notice noPrint">POUZE TESTOVACÍ DOKLAD – neplatí jako doklad skutečné tržby, EET není aktivní.</p><div class="receipt"><h2>POKLADNA SALONU</h2><p style="text-align:center">TESTOVACÍ DOKLAD<br>NEPLATNÝ PRO OSTRÝ PROVOZ</p><hr><p>Číslo: '+esc(r.id.slice(0,12))+'</p><p>Datum: '+dateStr(r.createdAt)+'</p><div class="line"><span>'+esc(r.description)+'</span><b>'+fmt(r.amount)+'</b></div><hr><div class="line"><strong>CELKEM</strong><strong>'+fmt(r.amount)+'</strong></div><p>Platba: '+esc(paymentTypes[r.payment])+'</p><p>Zákazník: '+esc(customer?customer.name:"neuveden")+'</p><p>EET: NEODESLÁNO (DEMO)</p><hr><p style="text-align:center">Testovací doklad – nelze použít v obchodním styku</p></div>';$("#backRecord").onclick=()=>nav("records");$("#printReceipt").onclick=()=>window.print()}
+
+function receiptLink(record){
+  // Public DEMO only: data is in the URL fragment and is NOT a verified fiscal document.
+  // Never include customer name, email, phone, or any other personal data in this payload.
+  const payload={v:1,test:true,id:record.id.slice(0,12),date:record.createdAt,description:record.description,amount:record.amount,payment:record.payment};
+  return location.origin+location.pathname+"#receipt="+encodeURIComponent(JSON.stringify(payload));
+}
+function publicReceiptHtml(r){
+  return '<div class="receipt"><h2>POKLADNA SALONU</h2><p style="text-align:center">VEŘEJNÁ DEMO UKÁZKA<br>NEPLATNÝ DOKLAD</p><hr><p>Číslo: '+esc(r.id)+'</p><p>Datum: '+dateStr(r.date)+'</p><div class="line"><span>'+esc(r.description)+'</span><b>'+fmt(r.amount)+'</b></div><hr><div class="line"><strong>CELKEM</strong><strong>'+fmt(r.amount)+'</strong></div><p>Platba: '+esc(paymentTypes[r.payment]||"Neuvedeno")+'</p><p>EET: NEODESLÁNO (DEMO)</p><hr><p style="text-align:center">Pouze demonstrace funkce QR</p></div>';
+}
+function publicReceiptFromUrl(){
+  const hash=location.hash;
+  if(!hash.startsWith("#receipt="))return false;
+  try{
+    const raw=decodeURIComponent(hash.slice("#receipt=".length));
+    if(raw.length>1500)throw Error("Příliš dlouhý doklad");
+    const data=JSON.parse(raw);
+    if(data.v!==1||data.test!==true||typeof data.id!=="string"||typeof data.description!=="string"||!Number.isFinite(data.amount)||data.amount<=0||!Number.isFinite(Date.parse(data.date)))throw Error("Neplatný doklad");
+    $("#pageTitle").textContent="Ukázková účtenka přes QR";
+    $("#view").innerHTML='<p class="notice">Toto je veřejná testovací ukázka, nikoliv pravá účtenka. Údaje lze měnit v odkazu a nejsou ověřené serverem.</p>'+publicReceiptHtml(data)+'<div class="actions noPrint"><button class="btn" id="printPublic">Uložit jako PDF / tisk</button><button class="btn secondary" id="backHome">Zpět na pokladnu</button></div>';
+    $("#printPublic").onclick=()=>window.print();
+    $("#backHome").onclick=()=>{history.replaceState(null,"",location.pathname);nav("dashboard")};
+  }catch(e){
+    $("#view").innerHTML='<p class="notice">QR odkaz není platný. '+esc(e.message)+'</p><button class="btn" id="backHome">Zpět</button>';
+    $("#backHome").onclick=()=>{history.replaceState(null,"",location.pathname);nav("dashboard")};
+  }
+  return true;
+}
+function renderQR(link){
+  const box=$("#qrCode");if(!box)return;
+  if(typeof QRCode!=="function"){box.textContent="QR knihovna není dostupná. Odkaz lze zkopírovat.";return;}
+  try{new QRCode(box,{text:link,width:180,height:180,correctLevel:QRCode.CorrectLevel.M});}
+  catch(e){box.textContent="QR kód se nepodařilo vytvořit. Použij odkaz."}
+}
+function showReceipt(recordId){
+  const r=records.find(o=>o.id===recordId&&o.type==="sale");
+  if(!r)return;
+  receiptId=recordId;
+  const customer=records.find(c=>c.id===r.customerId), link=receiptLink(r);
+  $("#pageTitle").textContent="Testovací doklad";
+  const actions='<div class="sectionTitle noPrint"><h2>Testovací doklad</h2><div class="actions"><button class="btn secondary" id="backRecord">Zpět</button><button class="btn" id="printReceipt">Tisk / Uložit PDF</button></div></div>';
+  const customerText=customer?'<p>Zákazník: '+esc(customer.name)+'</p>':'';
+  const localDoc='<div class="receipt"><h2>POKLADNA SALONU</h2><p style="text-align:center">TESTOVACÍ DOKLAD<br>NEPLATNÝ PRO OSTRÝ PROVOZ</p><hr><p>Číslo: '+esc(r.id.slice(0,12))+'</p><p>Datum: '+dateStr(r.createdAt)+'</p><div class="line"><span>'+esc(r.description)+'</span><b>'+fmt(r.amount)+'</b></div><hr><div class="line"><strong>CELKEM</strong><strong>'+fmt(r.amount)+'</strong></div><p>Platba: '+esc(paymentTypes[r.payment])+'</p>'+customerText+'<p>EET: NEODESLÁNO (DEMO)</p><hr><p style="text-align:center">Testovací doklad – nelze použít v obchodním styku</p></div>';
+  const mail=customer&&customer.email?'<p>Uložený e-mail: <b>'+esc(customer.email)+'</b></p><button class="btn secondary" id="sendCustomer">Připravit e-mail zákazníkovi</button>':'<p class="muted tiny">Zákazník nemá uložený e-mail, nebo nebyl k prodeji vybrán.</p>';
+  $("#view").innerHTML=actions+'<p class="notice noPrint">TESTOVACÍ režim: e-mail pouze otevře poštovní aplikaci, neodesílá se automaticky. QR obsahuje fiktivní údaje v odkazu, bez jména a e-mailu zákazníka.</p>'+localDoc+
+    '<div class="panel noPrint"><h3>Elektronický doklad</h3><div class="two"><div><div id="qrCode" aria-label="QR kód veřejného testovacího dokladu"></div><p class="tiny muted">Zákazník naskenuje QR kód a zobrazí si testovací doklad s možností tisku nebo uložení jako PDF.</p></div><div><label>Odkaz na testovací doklad<input id="receiptUrl" readonly></label><div class="actions" style="margin:10px 0"><button class="btn secondary" id="copyReceipt">Kopírovat odkaz</button><button class="btn secondary" id="openReceipt">Otevřít doklad</button></div>'+mail+'<hr><label>Jiný e-mail (jednorázově)<input type="email" id="manualEmail" placeholder="test@example.cz"></label><div class="actions" style="margin-top:10px"><button class="btn secondary" id="sendManual">Připravit e-mail</button></div></div></div></div>';
+  $("#receiptUrl").value=link;
+  renderQR(link);
+  $("#backRecord").onclick=()=>nav("records");
+  $("#printReceipt").onclick=()=>window.print();
+  $("#copyReceipt").onclick=()=>{navigator.clipboard?.writeText(link).then(()=>notice("Odkaz zkopírován")).catch(()=>notice("Odkaz označ a zkopíruj ručně"))};
+  $("#openReceipt").onclick=()=>window.open(link,"_blank","noopener,noreferrer");
+  const send=(email)=>{if(!email||!(/^[^\s@]+@[^\s@]+\.[^\s@]+$/).test(email)){notice("Zadej platnou e-mailovou adresu");return}const subject="Testovací doklad – Pokladna salonu";const body="Toto je pouze TESTOVACÍ ukázka dokladu, nikoli potvrzení skutečné tržby.\n\nZobrazit doklad:\n"+link+"\n\nDoklad si můžeš uložit jako PDF přes nabídku tisku.";location.href="mailto:"+encodeURIComponent(email)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body);notice("Otevřena poštovní aplikace – odeslání je nutné potvrdit")};
+  if(customer?.email)$("#sendCustomer").onclick=()=>send(customer.email);
+  $("#sendManual").onclick=()=>send($("#manualEmail").value.trim());
+}
 function exportCSV(type){let data=type==="all"?records:records.filter(r=>r.type===type);const cols=["id","type","createdAt","description","category","amount","payment","customerId","eetStatus","eetConfirmation","name","email","phone"];const line=arr=>arr.map(x=>'"'+String(x??"").replaceAll('"','""')+'"').join(";");const csv="\uFEFF"+[line(cols),...data.map(r=>line(cols.map(c=>r[c])))].join("\r\n");const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="pokladna-demo-"+type+"-"+new Date().toISOString().slice(0,10)+".csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);notice("CSV export vytvořen – testovací data")}
 document.querySelectorAll(".nav button").forEach(b=>b.addEventListener("click",()=>nav(b.dataset.page)));
+window.addEventListener("hashchange",()=>{if(!publicReceiptFromUrl())nav("dashboard")});
 window.addEventListener("online",status);window.addEventListener("offline",status);
-initDB().then(()=>load()).then(()=>{render();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("Offline cache unavailable",e))}).catch(err=>{$("#view").innerHTML='<div class="notice">Nepodařilo se otevřít místní databázi. Nepokračujte v zadávání dat. '+esc(err.message)+'</div>';$("#alert").className="alert show";$("#alert").textContent="CHYBA MÍSTNÍHO UKLÁDÁNÍ"});
+initDB().then(()=>load()).then(()=>{if(!publicReceiptFromUrl())render();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("Offline cache unavailable",e))}).catch(err=>{$("#view").innerHTML='<div class="notice">Nepodařilo se otevřít místní databázi. Nepokračujte v zadávání dat. '+esc(err.message)+'</div>';$("#alert").className="alert show";$("#alert").textContent="CHYBA MÍSTNÍHO UKLÁDÁNÍ"});
