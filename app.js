@@ -44,7 +44,7 @@ function receiptLink(record){
   // Public DEMO only: data is in the URL fragment and is NOT a verified fiscal document.
   // Never include customer name, email, phone, or any other personal data in this payload.
   const payload={v:1,test:true,id:record.id.slice(0,12),date:record.createdAt,description:record.description,amount:record.amount,payment:record.payment};
-  return location.origin+location.pathname+"#receipt="+encodeURIComponent(JSON.stringify(payload));
+  return location.origin+location.pathname.replace(/[^/]*$/, "")+"doklad.html#receipt="+encodeURIComponent(JSON.stringify(payload));
 }
 function publicReceiptHtml(r){
   return '<div class="receipt"><h2>POKLADNA SALONU</h2><p style="text-align:center">VEŘEJNÁ DEMO UKÁZKA<br>NEPLATNÝ DOKLAD</p><hr><p>Číslo: '+esc(r.id)+'</p><p>Datum: '+dateStr(r.date)+'</p><div class="line"><span>'+esc(r.description)+'</span><b>'+fmt(r.amount)+'</b></div><hr><div class="line"><strong>CELKEM</strong><strong>'+fmt(r.amount)+'</strong></div><p>Platba: '+esc(paymentTypes[r.payment]||"Neuvedeno")+'</p><p>EET: NEODESLÁNO (DEMO)</p><hr><p style="text-align:center">Pouze demonstrace funkce QR</p></div>';
@@ -58,11 +58,11 @@ function publicReceiptFromUrl(){
     const data=JSON.parse(raw);
     if(data.v!==1||data.test!==true||typeof data.id!=="string"||typeof data.description!=="string"||!Number.isFinite(data.amount)||data.amount<=0||!Number.isFinite(Date.parse(data.date)))throw Error("Neplatný doklad");
     $("#pageTitle").textContent="Ukázková účtenka přes QR";
-    $("#view").innerHTML='<p class="notice">Toto je veřejná testovací ukázka, nikoliv pravá účtenka. Údaje lze měnit v odkazu a nejsou ověřené serverem.</p>'+publicReceiptHtml(data)+'<div class="actions noPrint"><button class="btn" id="printPublic">Uložit jako PDF / tisk</button><button class="btn secondary" id="backHome">Zpět na pokladnu</button></div>';
+    $("#view").innerHTML='<p class="notice">Toto je veřejná testovací ukázka, nikoliv pravá účtenka. Údaje lze měnit v odkazu a nejsou ověřené serverem.</p>'+publicReceiptHtml(data)+'<div class="actions noPrint"><button class="btn" id="printPublic">Uložit jako PDF / tisk</button></div>';
     $("#printPublic").onclick=()=>window.print();
-    $("#backHome").onclick=()=>{history.replaceState(null,"",location.pathname);nav("dashboard")};
+
   }catch(e){
-    $("#view").innerHTML='<p class="notice">QR odkaz není platný. '+esc(e.message)+'</p><button class="btn" id="backHome">Zpět</button>';
+    $("#view").innerHTML='<p class="notice">QR odkaz není platný. '+esc(e.message)+'</p>';
     $("#backHome").onclick=()=>{history.replaceState(null,"",location.pathname);nav("dashboard")};
   }
   return true;
